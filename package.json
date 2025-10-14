@@ -1,16 +1,18 @@
 {
-  "name": "render-chat-app",
+  "name": "render-chat-community",
   "version": "1.0.0",
-  "description": "A simple real-time chat app for Render.",
+  "description": "Advanced chat and YouTube platform on Render.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "pg": "^8.11.3",
+    "cloudinary": "^1.41.0"
   },
   "engines": {
-    "node": "16.x"
+    "node": "18.x"
   }
 }
