@@ -1,16 +1,17 @@
 {
-  "name": "render-chat-app",
+  "name": "my-chat-app-server-storage",
   "version": "1.0.0",
-  "description": "A simple real-time chat app for Render.",
+  "description": "Chat app with server-side nickname storage.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "pg": "^8.11.3"
   },
   "engines": {
-    "node": "16.x"
+    "node": "18.x"
   }
 }
