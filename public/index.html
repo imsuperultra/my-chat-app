@@ -1,13 +1,308 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <title>Render 채팅방</title>
-    <style>body{margin:0;padding-bottom:3rem;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}#form{background:rgba(0,0,0,.15);padding:.25rem;position:fixed;bottom:0;left:0;right:0;display:flex;height:3rem;box-sizing:border-box;backdrop-filter:blur(10px)}#input{border:none;padding:0 1rem;flex-grow:1;border-radius:2rem;margin:.25rem}#input:focus{outline:none}#form>button{background:#333;border:none;padding:0 1rem;margin:.25rem;border-radius:3px;outline:none;color:#fff}#messages{list-style-type:none;margin:0;padding:0}#messages>li{padding:.5rem 1rem}#messages>li:nth-child(odd){background:#efefef}</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sleek Chat (Server Storage)</title>
+    <style>
+        :root {
+            --bg-light: #f8f9fa; --text-light: #212529; --border-light: #dee2e6;
+            --bg-dark: #212529; --text-dark: #f8f9fa; --border-dark: #495057;
+            --primary: #0d6efd; --hover-primary: #0b5ed7;
+            --msg-sent-bg-light: #cfe2ff; --msg-sent-bg-dark: #3b5bdb;
+            --msg-received-bg-light: #e9ecef; --msg-received-bg-dark: #343a40;
+            --input-bg-light: #fff; --input-bg-dark: #495057;
+            --system-msg-color-light: #6c757d; --system-msg-color-dark: #adb5bd;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; transition: background-color 0.3s, color 0.3s; }
+        body.light { background-color: var(--bg-light); color: var(--text-light); }
+        body.dark { background-color: var(--bg-dark); color: var(--text-dark); }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 1rem; border-bottom: 1px solid var(--border-light); transition: border-color 0.3s; }
+        body.dark header { border-bottom-color: var(--border-dark); }
+        #theme-toggle, #settings-btn { background: none; border: 1px solid transparent; padding: 0.5rem; cursor: pointer; border-radius: 5px; transition: background-color 0.2s; color: inherit; }
+        #theme-toggle:hover, #settings-btn:hover { background-color: rgba(128, 128, 128, 0.1); }
+        #nickname-display { font-weight: bold; }
+        #messages { flex-grow: 1; list-style-type: none; margin: 0; padding: 1rem; overflow-y: auto; }
+        #messages li { padding: 0.6rem 0.9rem; margin-bottom: 0.8rem; border-radius: 12px; max-width: 70%; word-wrap: break-word; line-height: 1.4; }
+        #messages li.sent { background-color: var(--msg-sent-bg-light); margin-left: auto; text-align: right; }
+        body.dark #messages li.sent { background-color: var(--msg-sent-bg-dark); color: #fff; }
+        #messages li.received { background-color: var(--msg-received-bg-light); margin-right: auto; }
+        body.dark #messages li.received { background-color: var(--msg-received-bg-dark); }
+        #messages li.system { background: none; color: var(--system-msg-color-light); font-style: italic; font-size: 0.85em; text-align: center; max-width: 100%; margin-bottom: 0.5rem; }
+        body.dark #messages li.system { color: var(--system-msg-color-dark); }
+        .sender-nick { font-weight: bold; display: block; margin-bottom: 0.3rem; font-size: 0.9em; opacity: 0.8; }
+        .timestamp { font-size: 0.75em; opacity: 0.6; display: block; margin-top: 0.3rem; }
+        #form { display: flex; padding: 0.5rem 1rem; border-top: 1px solid var(--border-light); transition: border-color 0.3s; }
+        body.dark #form { border-top-color: var(--border-dark); }
+        #input { flex-grow: 1; border: 1px solid var(--border-light); padding: 0.8rem 1rem; border-radius: 20px; margin-right: 0.5rem; outline: none; transition: border-color 0.3s, background-color 0.3s; background-color: var(--input-bg-light); color: inherit; }
+        body.dark #input { border-color: var(--border-dark); background-color: var(--input-bg-dark); }
+        #input:disabled { background-color: #e9ecef; cursor: not-allowed; }
+        body.dark #input:disabled { background-color: #343a40; }
+        #form button { background-color: var(--primary); color: white; border: none; padding: 0.8rem 1.2rem; border-radius: 20px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; }
+        #form button:hover { background-color: var(--hover-primary); }
+        #form button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .modal-overlay { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; z-index: 1000; }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal-content { background-color: var(--bg-light); padding: 2rem; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 90%; max-width: 400px; transition: background-color 0.3s, color 0.3s; }
+        body.dark .modal-content { background-color: var(--bg-dark); }
+        .modal-content h2 { margin-top: 0; margin-bottom: 1.5rem; }
+        .modal-content label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+        .modal-content input[type="text"] { width: calc(100% - 2rem); padding: 0.8rem 1rem; border: 1px solid var(--border-light); border-radius: 5px; margin-bottom: 1rem; background-color: var(--input-bg-light); color: inherit; }
+        body.dark .modal-content input[type="text"] { border-color: var(--border-dark); background-color: var(--input-bg-dark); }
+        .modal-footer { text-align: right; margin-top: 1rem; }
+        .modal-btn { padding: 0.6rem 1.2rem; border-radius: 5px; cursor: pointer; font-weight: bold; margin-left: 0.5rem; }
+        .btn-secondary { background: none; border: 1px solid var(--border-light); color: inherit; }
+        body.dark .btn-secondary { border-color: var(--border-dark); }
+        .btn-primary { background-color: var(--primary); color: white; border: none; }
+        .btn-primary:hover:not(:disabled) { background-color: var(--hover-primary); }
+        .btn-primary:disabled { background-color: #6c757d; cursor: not-allowed; }
+        #nickname-info { font-size: 0.9em; opacity: 0.8; margin-top: -0.5rem; margin-bottom: 1.5rem; }
+    </style>
 </head>
-<body>
+<body class="light">
+    <header>
+        <div>
+            닉네임: <span id="nickname-display">연결 중...</span>
+            <span id="prev-nickname-display" style="font-size: 0.8em; opacity: 0.7;"></span>
+        </div>
+        <div>
+            <button id="settings-btn" title="설정">⚙️</button>
+            <button id="theme-toggle" title="테마 변경">☀️</button>
+        </div>
+    </header>
+
     <ul id="messages"></ul>
-    <form id="form" action=""><input id="input" autocomplete="off" placeholder="메시지를 입력하세요..." /><button>전송</button></form>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>const socket=io(),form=document.getElementById("form"),input=document.getElementById("input"),messages=document.getElementById("messages");let nickname=prompt("사용할 닉네임을 입력하세요","익명");nickname||(nickname="익명"),form.addEventListener("submit",function(e){e.preventDefault(),input.value&&(socket.emit("chat message",{nick:nickname,text:input.value}),input.value="")}),socket.on("chat message",function(e){const t=document.createElement("li");t.textContent=`${e.nick}: ${e.text}`,messages.appendChild(t),window.scrollTo(0,document.body.scrollHeight)});</script>
+
+    <form id="form" action="">
+        <input id="input" autocomplete="off" placeholder="메시지를 입력하세요..." disabled />
+        <button type="submit" disabled>전송</button>
+    </form>
+
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>설정</h2>
+            <label for="nickname-input">닉네임 변경</label>
+            <input type="text" id="nickname-input" />
+            <p id="nickname-info"></p>
+            <div class="modal-footer">
+                <button id="modal-close-btn" class="modal-btn btn-secondary">닫기</button>
+                <button id="modal-save-btn" class="modal-btn btn-primary" disabled>저장</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const messages = document.getElementById('messages');
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const formButton = form.querySelector('button');
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+        const modalSaveBtn = document.getElementById('modal-save-btn');
+        const nicknameInput = document.getElementById('nickname-input');
+        const nicknameDisplay = document.getElementById('nickname-display');
+        const prevNicknameDisplay = document.getElementById('prev-nickname-display');
+        const nicknameInfo = document.getElementById('nickname-info');
+
+        let currentUser = null; // 서버에서 받은 사용자 정보 저장 { user_id, nickname, previous_nickname, change_timestamps }
+        let userId = null;
+
+        // --- 초기화 ---
+        function initializeApp() {
+            const savedTheme = localStorage.getItem('chatTheme') || 'light';
+            applyTheme(savedTheme);
+
+            userId = localStorage.getItem('chatUserId');
+            if (!userId) {
+                userId = generateUUID();
+                localStorage.setItem('chatUserId', userId);
+            }
+
+            nicknameDisplay.textContent = '연결 중...';
+            disableChat();
+
+            socket.emit('request_user_data', userId, handleUserDataResponse);
+        }
+
+        // --- 서버 응답 처리 ---
+        function handleUserDataResponse(response) {
+            if (response.success) {
+                currentUser = response.user;
+                updateUserInfoUI();
+                enableChat();
+            } else if (response.needsSetup) {
+                promptAndSetupNickname();
+            } else {
+                alert(response.message || '서버 연결 실패');
+                nicknameDisplay.textContent = '연결 실패';
+                disableChat();
+            }
+        }
+
+        function promptAndSetupNickname() {
+            let initialNickname = prompt(`사용할 닉네임을 입력하세요.\n(다른 사람이 사용 중이면 오류가 발생합니다)`, `익명${Math.floor(Math.random() * 1000)}`);
+            if (!initialNickname) initialNickname = `익명${Math.floor(Math.random() * 1000)}`;
+
+            socket.emit('setup_nickname', { userId: userId, nickname: initialNickname }, (response) => {
+                if (response.success) {
+                    currentUser = response.user;
+                    updateUserInfoUI();
+                    enableChat();
+                } else {
+                    alert(response.message);
+                    promptAndSetupNickname(); // 실패 시 재시도
+                }
+            });
+        }
+
+        // --- UI 업데이트 ---
+        function updateUserInfoUI() {
+            if (!currentUser) return;
+            nicknameDisplay.textContent = currentUser.nickname;
+            prevNicknameDisplay.textContent = currentUser.previous_nickname ? ` (이전: ${currentUser.previous_nickname})` : '';
+            updateNicknameChangeInfo();
+        }
+
+        function enableChat() {
+            input.disabled = false;
+            formButton.disabled = false;
+            input.placeholder = '메시지를 입력하세요...';
+        }
+        function disableChat() {
+            input.disabled = true;
+            formButton.disabled = true;
+            input.placeholder = '서버에 연결 중...';
+        }
+
+        // --- 테마 관리 ---
+        function applyTheme(theme) {
+            document.body.className = theme;
+            localStorage.setItem('chatTheme', theme);
+            themeToggleBtn.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+        themeToggleBtn.addEventListener('click', () => {
+            const newTheme = document.body.classList.contains('light') ? 'dark' : 'light';
+            applyTheme(newTheme);
+        });
+
+        // --- 설정 모달 관리 ---
+        settingsBtn.addEventListener('click', () => {
+            if (!currentUser) return;
+            nicknameInput.value = currentUser.nickname;
+            updateNicknameChangeInfo(); // 모달 열 때 정보 갱신
+            settingsModal.classList.add('active');
+        });
+        modalCloseBtn.addEventListener('click', () => settingsModal.classList.remove('active'));
+        modalSaveBtn.addEventListener('click', saveNicknameToServer);
+
+        // --- 닉네임 관리 ---
+        function updateNicknameChangeInfo() {
+            if (!currentUser || !currentUser.change_timestamps) {
+                nicknameInfo.textContent = '변경 정보 로드 중...';
+                modalSaveBtn.disabled = true;
+                return;
+            }
+            const timestamps = currentUser.change_timestamps;
+            const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+            const recentChanges = timestamps.filter(ts => new Date(ts).getTime() > twoWeeksAgo);
+            const remainingChanges = 2 - recentChanges.length;
+            nicknameInfo.textContent = `최근 2주간 변경 횟수: ${recentChanges.length}회 (남은 횟수: ${remainingChanges}회)`;
+            const newNick = nicknameInput.value.trim();
+            modalSaveBtn.disabled = remainingChanges <= 0 && newNick && newNick !== currentUser.nickname;
+        }
+
+        nicknameInput.addEventListener('input', updateNicknameChangeInfo);
+
+        function saveNicknameToServer() {
+            const newNickname = nicknameInput.value.trim();
+            if (!newNickname) return alert('닉네임을 입력해주세요.');
+            if (!currentUser) return alert('사용자 정보가 로드되지 않았습니다.');
+            if (newNickname === currentUser.nickname) return settingsModal.classList.remove('active');
+
+            modalSaveBtn.textContent = '저장 중...';
+            modalSaveBtn.disabled = true;
+            socket.emit('change_nickname', { userId: currentUser.user_id, newNickname }, (response) => {
+                modalSaveBtn.textContent = '저장';
+
+                if (response.success) {
+                    currentUser = response.user;
+                    updateUserInfoUI();
+                    settingsModal.classList.remove('active');
+                    alert('닉네임이 변경되었습니다!');
+                } else {
+                    alert(response.message);
+                    updateNicknameChangeInfo(); // 실패 시 버튼 상태 다시 계산
+                }
+            });
+        }
+
+        // --- 메시지 송수신 ---
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (input.value && currentUser) {
+                const messageData = {
+                    nick: currentUser.nickname,
+                    text: input.value,
+                    timestamp: new Date().toISOString()
+                };
+                socket.emit('chat message', messageData);
+                input.value = ''; // 입력창 비우기
+            }
+        });
+
+        socket.on('chat message', function(msg) {
+             addMessage(msg, msg.nick === currentUser?.nickname); // isSentByMe 계산
+        });
+
+        socket.on('user_renamed', ({ oldNick, newNick }) => {
+            addSystemMessage(`📢 ${oldNick} 님이 닉네임을 ${newNick} (으)로 변경했습니다.`);
+        });
+
+        function addMessage(msg, isSentByMe) {
+            const item = document.createElement('li');
+            item.classList.add(isSentByMe ? 'sent' : 'received');
+
+            const nickSpan = document.createElement('span');
+            nickSpan.classList.add('sender-nick');
+            nickSpan.textContent = msg.nick;
+
+            const textNode = document.createTextNode(msg.text);
+
+            const timeSpan = document.createElement('span');
+            timeSpan.classList.add('timestamp');
+            const messageTime = msg.timestamp ? new Date(msg.timestamp) : new Date();
+            timeSpan.textContent = messageTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute:'2-digit' });
+
+            item.appendChild(nickSpan);
+            item.appendChild(textNode);
+            item.appendChild(timeSpan);
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function addSystemMessage(text) {
+             const item = document.createElement('li');
+             item.classList.add('system');
+             item.textContent = text;
+             messages.appendChild(item);
+             messages.scrollTop = messages.scrollHeight;
+        }
+
+        // --- 유틸리티 ---
+        function generateUUID() {
+          return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+          );
+        }
+
+        // --- 앱 시작 ---
+        initializeApp();
+
+    </script>
 </body>
 </html>
+```eof
